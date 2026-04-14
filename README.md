@@ -21,7 +21,11 @@ openclaw-life/                          ← this repo (shared infrastructure)
 │   ├── docker-compose.yml              ← instance-specific containers
 │   └── ...                             ← openclaw directories tracked by Git
 │
-└── openclaw-<instance-b>/              ← independently cloned instance repo
+├── openclaw-<instance-b>/              ← independently cloned instance repo
+│   ├── docker-compose.yml
+│   └── ...
+│
+└── openclaw-sample/                    ← copy this into new openclaw-myclaw
     ├── docker-compose.yml
     └── ...
 ```
