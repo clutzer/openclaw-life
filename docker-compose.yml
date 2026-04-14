@@ -14,7 +14,7 @@ services:
       # This pulls directly from the 'sa' user's environment provided by your SSH session
       - LINODE_TOKEN=${LINODE_TOKEN}
       # You can still hardcode the email here or pass it via SetEnv ACME_EMAIL
-      - ACME_EMAIL=admin@teknibauer.com 
+      - ACME_EMAIL=${ACME_EMAIL:-nobody@example.com} 
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -30,7 +30,7 @@ services:
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       - "--certificatesresolvers.linode-resolver.acme.dnschallenge=true"
       - "--certificatesresolvers.linode-resolver.acme.dnschallenge.provider=linode"
-      - "--certificatesresolvers.linode-resolver.acme.email=admin@teknibauer.com"
+      - "--certificatesresolvers.linode-resolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.linode-resolver.acme.storage=/acme.json"
 
 networks:
