@@ -1,0 +1,80 @@
+services:
+  openclaw: # keep this static
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw-${OPENCLAW_NAME}
+    restart: unless-stopped
+    init: true
+    networks:
+      - openclaw-life-net
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      TZ: ${TZ:-UTC}
+      NODE_EXTRA_CA_CERTS: /etc/inference-server/certs/ca.crt
+      # Gateway auth token — clients must present this to connect
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      # Named volume for runtime-only data: channel credentials, sessions, caches.
+      # These are NOT git-tracked. Managed entirely by Docker.
+      - ${HOME}/.openclaw-life/data/openclaw-${OPENCLAW_NAME}:/home/node/.openclaw
+
+      # Git-tracked workspace: USER.md, IDENTITY.md, memories/, skills/,
+      # AGENTS.md, SOUL.md, etc.  Overlay on top of the named volume so the
+      # workspace directory is owned by this repo while everything else in
+      # .openclaw remains in the named volume.
+      - ./workspace:/home/node/.openclaw/workspace
+
+      # Git-tracked certs for custom CAs.  These are read-only and should be
+      # mounted from the host to avoid having secrets in the repo.  The server
+      # will use these to verify TLS connections to private endpoints if
+      # OPENCLAW_ALLOW_INSECURE_PRIVATE_WS is not set.      
+      - ${HOME}/.openclaw-life/certs:/etc/inference-server/certs:ro
+
+      # Git-tracked instance configuration.  Keep secrets out of this file —
+      # use environment variables or .env instead.
+      # This causes EBUSY errors.  TODO: see if there are bind mount options, sync, or whatever?!
+      #- ./openclaw.json:/home/node/.openclaw/openclaw.json
+    command:
+      - "node"
+      - "dist/index.js"
+      - "gateway"
+      - "--bind"
+      - "lan"
+      - "--port"
+      - "18789"
+      - "--allow-unconfigured"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${OPENCLAW_NAME}.rule=Host(`${OPENCLAW_HOSTNAME}`)"
+      - "traefik.http.routers.${OPENCLAW_NAME}.entrypoints=websecure"
+      - "traefik.http.routers.${OPENCLAW_NAME}.tls.certresolver=linode-resolver"
+      - "traefik.http.services.${OPENCLAW_NAME}.loadbalancer.server.port=18789"
+
+      # WebSocket support (correct syntax)
+      - "traefik.http.middlewares.${OPENCLAW_NAME}-websocket.headers.customrequestheaders.Upgrade=websocket"
+      - "traefik.http.middlewares.${OPENCLAW_NAME}-websocket.headers.customresponseheaders.Connection=Upgrade"
+
+      # Forwarded headers for trusted proxy logic
+      - "traefik.http.middlewares.${OPENCLAW_NAME}-forward.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.${OPENCLAW_NAME}-forward.headers.customrequestheaders.X-Forwarded-Host={{.Request.Host}}"
+      - "traefik.http.middlewares.${OPENCLAW_NAME}-forward.headers.customrequestheaders.X-Forwarded-For={{.Request.RemoteAddr}}"
+
+      # Apply both middlewares to the router
+      - "traefik.http.routers.${OPENCLAW_NAME}.middlewares=${OPENCLAW_NAME}-forward,${OPENCLAW_NAME}-websocket"
+
+networks:
+  openclaw-life-net:
+    external: true

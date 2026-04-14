@@ -1,0 +1,16 @@
+# Secret / local environment
+.env
+
+# Runtime data managed by Docker (credentials, sessions, caches).
+# These live in the named Docker volume, not in this repo.
+# If you ever bind-mount .openclaw directly instead of using a named volume,
+# add exclusions here to avoid accidentally committing secrets:
+#   .openclaw/credentials/
+#   .openclaw/sessions/
+#   .openclaw/tmp/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
