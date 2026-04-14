@@ -134,6 +134,6 @@ git pull
 
 ## Persistence and Backups
 
-Git is used as the primary mechanism for tracking and backing up important OpenClaw directories. Each `openclaw-<instance>` repo should commit changes to any directories that represent meaningful state — configuration files, installed plugins, user settings, etc. Routine `git commit` + `git push` from within the instance directory serves as the backup workflow.
+Git is used as the primary mechanism for tracking and backing up important OpenClaw directories. Each `openclaw-<instance>` repo should commit changes to any directories that represent meaningful state — configuration files, installed plugins, user settings, etc. Routine `git commit` + `git push` from within the instance directory serves as the backup workflow.  As an example, `./openclaw-sample/scripts/git-workspace-backup.sh` can be added to `crontab` to perform periodic backups of the OpenClaw `workspace` directory.
 
 Traefik certificate state (`traefik-acme.json`) lives outside Git in `~/.openclaw-life/data/` and should be backed up separately if needed.
