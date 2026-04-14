@@ -1,0 +1,5 @@
+# Ignore all subdirectories starting with openclaw-
+openclaw-*/
+
+# BUT do not ignore the sample directory
+!openclaw-sample/
