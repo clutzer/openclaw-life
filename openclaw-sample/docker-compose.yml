@@ -37,15 +37,11 @@ services:
       # use environment variables or .env instead.
       # This causes EBUSY errors.  TODO: see if there are bind mount options, sync, or whatever?!
       #- ./openclaw.json:/home/node/.openclaw/openclaw.json
-    command:
-      - "node"
-      - "dist/index.js"
-      - "gateway"
-      - "--bind"
-      - "lan"
-      - "--port"
-      - "18789"
-      - "--allow-unconfigured"
+    command: >
+      node dist/index.js gateway
+      --bind lan
+      --port 18789
+      --allow-unconfigured
     healthcheck:
       test:
         - "CMD"
@@ -63,7 +59,16 @@ services:
       - "traefik.http.routers.${OPENCLAW_NAME}.tls.certresolver=linode-resolver"
       - "traefik.http.services.${OPENCLAW_NAME}.loadbalancer.server.port=18789"
 
-      # WebSocket support (correct syntax)
+      # 2026-04-14: Even with all the following, reverse proxying into the gateway is not working properly.
+      # you still need to set:
+      #
+      # "gateway.controlUi.allowInsecureAuth": true
+      #
+      # in the gateway config to get it working, which is not expected.  This may be a bug in Traefik or
+      # something I'm doing wrong, but for now this is required to get WebSockets working through the reverse
+      # proxy.
+
+      # WebSocket support
       - "traefik.http.middlewares.${OPENCLAW_NAME}-websocket.headers.customrequestheaders.Upgrade=websocket"
       - "traefik.http.middlewares.${OPENCLAW_NAME}-websocket.headers.customresponseheaders.Connection=Upgrade"
 
