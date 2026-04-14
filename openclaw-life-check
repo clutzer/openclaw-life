@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+
+import os
+import yaml
+import re
+from pathlib import Path
+from dotenv import load_dotenv
+
+def expand_env_vars(content):
+    """Expands ${VAR} or $VAR based on current environment/dotenv.
+    Raises ValueError for any variable that is not set."""
+    def replacer(m):
+        var = m.group(1) or m.group(2)
+        val = os.getenv(var)
+        if val is None:
+            raise ValueError(
+                f"Required environment variable ${{{var}}} is not set. "
+                "Check your .env file."
+            )
+        return val
+    return re.sub(r'\$\{(\w+)\}|\$(\w+)', replacer, content)
+
+def setup_openclaw():
+    # 1. Load the .env file from the current working directory (i.e. the
+    #    instance directory the script is invoked from, not the script's own
+    #    directory).  override=True ensures .env values win over any existing
+    #    shell environment variables with the same name.
+    env_path = Path.cwd() / ".env"
+    if not env_path.exists():
+        print(f"⚠️  Warning: no .env found at {env_path}  — relying on shell environment only.")
+    else:
+        load_dotenv(dotenv_path=env_path, override=True)
+
+    compose_path = Path("docker-compose.yml")
+    if not compose_path.exists():
+        print("❌ Error: docker-compose.yml not found.")
+        return
+
+    # 2. Read and expand variables in the YAML
+    with open(compose_path, 'r') as f:
+        raw_content = f.read()
+        expanded_content = expand_env_vars(raw_content)
+        config = yaml.safe_load(expanded_content)
+
+    print(f"🚀 Preparing directories for Project: {os.getenv('COMPOSE_PROJECT_NAME', 'default')}...")
+
+    # 3. Iterate through services and find bind mounts
+    for service_name, service_conf in config.get('services', {}).items():
+        volumes = service_conf.get('volumes', [])
+        for vol in volumes:
+            # We only care about bind mounts (they start with . or / or ~)
+            if isinstance(vol, str) and (vol.startswith('.') or vol.startswith('/') or vol.startswith('~')):
+                # Split 'host_path:container_path'
+                host_path = vol.split(':')[0]
+                
+                # Expand user (~)
+                full_path = Path(os.path.expanduser(host_path)).resolve()
+
+                if not full_path.exists():
+                    print(f"📁 Creating: {full_path}")
+                    full_path.mkdir(parents=True, exist_ok=True)
+                else:
+                    print(f"✅ Exists: {full_path}")
+
+    print("\n✨ Pre-flight check complete. You can now run 'docker-compose up -d'")
+
+if __name__ == "__main__":
+    setup_openclaw()
