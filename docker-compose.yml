@@ -1,0 +1,38 @@
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - openclaw-life-net
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # This pulls directly from the 'sa' user's environment provided by your SSH session
+      - LINODE_TOKEN=${LINODE_TOKEN}
+      # You can still hardcode the email here or pass it via SetEnv ACME_EMAIL
+      - ACME_EMAIL=admin@teknibauer.com 
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persistence moved to the hidden data directory
+      - ${HOME}/.openclaw-life/data/traefik-acme.json:/acme.json
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=openclaw-life-net"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--certificatesresolvers.linode-resolver.acme.dnschallenge=true"
+      - "--certificatesresolvers.linode-resolver.acme.dnschallenge.provider=linode"
+      - "--certificatesresolvers.linode-resolver.acme.email=admin@teknibauer.com"
+      - "--certificatesresolvers.linode-resolver.acme.storage=/acme.json"
+
+networks:
+  openclaw-life-net:
+    external: true
