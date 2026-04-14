@@ -35,21 +35,22 @@ fi
 
 # 2. Configure SSH to accept LINODE_TOKEN (Modular Snippet)
 SSH_CONF_DIR="/etc/ssh/sshd_config.d"
-SSH_LINODE_CONF="$SSH_CONF_DIR/openclaw-life-linode-token.conf"
+SSH_OPENCLAW_LIFE_CONF_FILE="$SSH_CONF_DIR/openclaw-life.conf"
+SSH_OPENCLAW_LIFE_DATA="AcceptEnv LINODE_TOKEN ACME_EMAIL"
 
-if [ ! -f "$SSH_LINODE_CONF" ]; then
-    echo "[+] Creating SSH configuration snippet for LINODE_TOKEN..."
-    echo "AcceptEnv LINODE_TOKEN" | sudo tee "$SSH_LINODE_CONF" > /dev/null
+if [ ! -f "$SSH_OPENCLAW_LIFE_CONF_FILE" ]; then
+    echo "[+] Creating OpenClaw-Life SSH configuration..."
+    echo "$SSH_OPENCLAW_LIFE_DATA" | sudo tee "$SSH_OPENCLAW_LIFE_CONF_FILE" > /dev/null
     echo "[+] Restarting SSH service to apply changes..."
     sudo systemctl restart ssh
 else
     # Check if the content is correct
-    if ! grep -q "AcceptEnv LINODE_TOKEN" "$SSH_LINODE_CONF"; then
-        echo "[!] Updating existing SSH snippet..."
-        echo "AcceptEnv LINODE_TOKEN" | sudo tee "$SSH_LINODE_CONF" > /dev/null
+    if ! grep -q "$SSH_OPENCLAW_LIFE_DATA" "$SSH_OPENCLAW_LIFE_CONF_FILE"; then
+        echo "[!] Updating existing OpenClaw-Life SSH configuration..."
+        echo "$SSH_OPENCLAW_LIFE_DATA" | sudo tee "$SSH_OPENCLAW_LIFE_CONF_FILE" > /dev/null
         sudo systemctl restart ssh
     else
-        echo "[ok] SSH configuration for LINODE_TOKEN is already set."
+        echo "[ok] OpenClaw-Life SSH configuration is already present."
     fi
 fi
 
