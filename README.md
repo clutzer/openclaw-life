@@ -66,15 +66,15 @@ ACME certificate state is persisted to `~/.openclaw-life/data/traefik-acme.json`
 Installs Docker, configures SSH to forward `LINODE_TOKEN` and `ACME_EMAIL` from your local machine, and creates the shared Docker network.
 
 ```bash
-sudo ./step-0-setup-system.sh
+sudo ./setup/step-0-setup-system.sh
 ```
 
 ### Step 1 — Environment setup (once, as the service user)
 
-Creates the persistence directory and secures the `acme.json` file required by Traefik.
+Creates the persistence directory and secures the `traefik-acme.json` file required by Traefik.
 
 ```bash
-./step-1-setup-openclaw-life.sh
+./setup/step-1-setup-openclaw-life.sh
 ```
 
 ### Start the shared infrastructure
@@ -136,4 +136,4 @@ git pull
 
 Git is used as the primary mechanism for tracking and backing up important OpenClaw directories. Each `openclaw-<instance>` repo should commit changes to any directories that represent meaningful state — configuration files, installed plugins, user settings, etc. Routine `git commit` + `git push` from within the instance directory serves as the backup workflow.
 
-Traefik certificate state (`acme.json`) lives outside Git in `~/.openclaw-life/data/` and should be backed up separately if needed.
+Traefik certificate state (`traefik-acme.json`) lives outside Git in `~/.openclaw-life/data/` and should be backed up separately if needed.
