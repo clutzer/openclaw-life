@@ -9,8 +9,13 @@ This repository is the **orchestration environment** for running one or more Ope
 ```
 openclaw-life/                          ← this repo (shared infrastructure)
 ├── docker-compose.yml                  ← Traefik reverse proxy
-├── step-0-setup-system.sh              ← one-time system provisioning (run as root)
-├── step-1-setup-openclaw-life.sh       ← one-time environment setup (run as user)
+│
+├── scripts/                            ← helper scripts
+│   └── openclaw-life-check             ← verify openclaw-<instance> directory is good
+│
+├── setup/                              ← setup scripts
+│   ├── step-0-setup-system.sh          ← one-time system provisioning (run as root)
+│   └── step-1-setup-openclaw-life.sh   ← one-time environment setup (run as user)
 │
 ├── openclaw-<instance-a>/              ← independently cloned instance repo
 │   ├── docker-compose.yml              ← instance-specific containers
