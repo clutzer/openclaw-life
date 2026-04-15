@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Script to deploy a new openclaw-INSTANCE_NAME from openclaw-sample
+
+read -p "Enter the new OpenClaw instance name: " INSTANCE_NAME
+
+if [[ -z "$INSTANCE_NAME" ]]; then
+  echo "INSTANCE_NAME cannot be empty. Exiting."
+  exit 1
+fi
+
+TARGET_DIR="../openclaw-$INSTANCE_NAME"
+
+if [[ -d "$TARGET_DIR" ]]; then
+  echo "Directory $TARGET_DIR already exists. Exiting."
+  exit 1
+fi
+
+cp -r ../openclaw-sample "$TARGET_DIR"
+echo "Copied openclaw-sample to $TARGET_DIR."
+
+echo "Deployment complete."
