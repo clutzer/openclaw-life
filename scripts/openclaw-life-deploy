@@ -2,6 +2,18 @@
 
 # Script to deploy a new openclaw-INSTANCE_NAME from openclaw-sample
 
+# Find the openclaw-life parent directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$SCRIPT_DIR"
+while [[ "$(basename "$BASE_DIR")" != "openclaw-life" && "$BASE_DIR" != "/" ]]; do
+  BASE_DIR="$(dirname "$BASE_DIR")"
+done
+
+if [[ "$(basename "$BASE_DIR")" != "openclaw-life" ]]; then
+  echo "Could not find openclaw-life parent directory. Exiting."
+  exit 1
+fi
+
 read -p "Enter the new OpenClaw instance name: " INSTANCE_NAME
 
 if [[ -z "$INSTANCE_NAME" ]]; then
@@ -9,14 +21,28 @@ if [[ -z "$INSTANCE_NAME" ]]; then
   exit 1
 fi
 
-TARGET_DIR="../openclaw-$INSTANCE_NAME"
+SAMPLE_DIR="$BASE_DIR/openclaw-sample"
+TARGET_DIR="$BASE_DIR/openclaw-$INSTANCE_NAME"
 
 if [[ -d "$TARGET_DIR" ]]; then
   echo "Directory $TARGET_DIR already exists. Exiting."
   exit 1
 fi
 
-cp -r ../openclaw-sample "$TARGET_DIR"
+cp -r "$SAMPLE_DIR" "$TARGET_DIR"
 echo "Copied openclaw-sample to $TARGET_DIR."
 
 echo "Deployment complete."
+
+EXAMPLE_ENV="$TARGET_DIR/example.env"
+CONFIGURE_SCRIPT="$BASE_DIR/scripts/openclaw-life-configure"
+if [[ -f "$EXAMPLE_ENV" && -x "$CONFIGURE_SCRIPT" ]]; then
+  read -p "Would you like to configure this instance now? [y/N]: " RUN_CONFIGURE
+  if [[ "$RUN_CONFIGURE" =~ ^[Yy]$ ]]; then
+    "$CONFIGURE_SCRIPT" "openclaw-$INSTANCE_NAME"
+  else
+    echo "You can configure later by running: $CONFIGURE_SCRIPT openclaw-$INSTANCE_NAME"
+  fi
+elif [[ -f "$EXAMPLE_ENV" ]]; then
+  echo "To configure this instance, run: $CONFIGURE_SCRIPT openclaw-$INSTANCE_NAME"
+fi
