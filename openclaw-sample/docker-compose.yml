@@ -15,6 +15,7 @@ services:
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      INFERENCE_GATEWAY_TOKEN: ${INFERENCE_GATEWAY_TOKEN}
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
       # Named volume for runtime-only data: channel credentials, sessions, caches.
@@ -30,7 +31,7 @@ services:
       # Git-tracked certs for custom CAs.  These are read-only and should be
       # mounted from the host to avoid having secrets in the repo.  The server
       # will use these to verify TLS connections to private endpoints if
-      # OPENCLAW_ALLOW_INSECURE_PRIVATE_WS is not set.      
+      # OPENCLAW_ALLOW_INSECURE_PRIVATE_WS is not set.
       - ${HOME}/.openclaw-life/certs:/etc/inference-server/certs:ro
 
       # Git-tracked instance configuration.  Keep secrets out of this file —
