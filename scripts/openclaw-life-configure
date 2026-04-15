@@ -68,6 +68,9 @@ def main():
             return user_input
         return default
 
+    uid_default = str(os.getuid())
+    gid_default = str(os.getgid())
+
     for line in lines:
         stripped = line.strip()
         if not stripped or stripped.startswith('#'):
@@ -105,6 +108,12 @@ def main():
                 except Exception as e:
                     print(f"Failed to generate token: {e}")
                     new_env_lines.append(f"OPENCLAW_GATEWAY_TOKEN=\n")
+        elif key == "UID":
+            user_value = prompt_with_default("Enter UID for OpenClaw process", value or uid_default)
+            new_env_lines.append(f"UID={user_value}\n")
+        elif key == "GID":
+            user_value = prompt_with_default("Enter GID for OpenClaw process", value or gid_default)
+            new_env_lines.append(f"GID={user_value}\n")
         else:
             user_value = prompt_with_default(f"Enter value for {key}", value)
             if user_value is not None:
