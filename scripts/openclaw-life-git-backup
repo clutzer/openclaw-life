@@ -10,7 +10,18 @@
 # Example Cron entry (runs every night at 3:30am):
 # 30 3 * * * cd ~/openclaw-life/openclaw-luna/workspace && ../scripts/git-workspace-backup.sh
 #
+
 set -e
+
+# Determine parent directory name
+PARENT_DIR_NAME=$(basename "$(realpath .)")
+#echo "Parent directory: $PARENT_DIR_NAME"
+SRC_JSON="$HOME/.openclaw-life/data/$PARENT_DIR_NAME/openclaw.json"
+DEST_JSON="./openclaw.json"
+if [[ -f "$SRC_JSON" ]]; then
+  #echo "Found $SRC_JSON. Copying to current directory and backing up."
+  cp "$SRC_JSON" "$DEST_JSON"
+fi
 
 # Check if inside a git repository
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
