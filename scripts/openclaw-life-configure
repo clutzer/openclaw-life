@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import subprocess
 import sys
 
 def list_openclaw_dirs(base_dir):
@@ -33,7 +34,6 @@ def main():
     else:
         instance_dir = select_instance_dir(base_dir)
 
-
     example_env_path = os.path.join(instance_dir, "example.env")
     dotenv_path = os.path.join(instance_dir, ".env")
 
@@ -41,17 +41,21 @@ def main():
         print(f"example.env not found in {instance_dir}.")
         exit(1)
 
+    # Read existing .env values if present
+    existing_env = {}
     if os.path.isfile(dotenv_path):
-        overwrite = input(f".env already exists in {instance_dir}. Overwrite? [y/N]: ").strip().lower()
-        if overwrite != 'y':
-            print("Aborted. .env not overwritten.")
-            return
-
-    with open(example_env_path, "r") as f:
-        lines = f.readlines()
-
-
-    import subprocess
+        with open(dotenv_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                v = v.strip()
+                if len(v) > 0:
+                    existing_env[k.strip()] = v.strip()
+        print(f"Read {len(existing_env)} existing .env values.")
+    else:
+        print("No existing .env file found. All values will be prompted.")
 
     # Determine instance name from directory
     instance_basename = os.path.basename(instance_dir)
@@ -71,6 +75,9 @@ def main():
     uid_default = str(os.getuid())
     gid_default = str(os.getgid())
 
+    with open(example_env_path, "r") as f:
+        lines = f.readlines()
+
     for line in lines:
         stripped = line.strip()
         if not stripped or stripped.startswith('#'):
@@ -83,23 +90,27 @@ def main():
         key = key.strip()
         value = value.strip()
 
+        # Determine the default value: prefer .env, then example.env, then UID/GID for those keys
+        if key == "UID":
+            default = existing_env.get("UID", value or uid_default)
+        elif key == "GID":
+            default = existing_env.get("GID", value or gid_default)
+        else:
+            default = existing_env.get(key, value)
+
         # Custom handling for specific variables
         if key == "OPENCLAW_NAME":
             print(f"Setting OPENCLAW_NAME to '{openclaw_name}' based on directory name.")
             new_env_lines.append(f"OPENCLAW_NAME={openclaw_name}\n")
-        elif key == "DISCORD_BOT_TOKEN":
-            use_discord = prompt_with_default("Are you going to be integrating this with Discord? [y/N]", "n").lower()
-            if use_discord == 'y':
-                token = prompt_with_default("Enter your Discord Bot Token", value)
-                new_env_lines.append(f"DISCORD_BOT_TOKEN={token}\n")
-            else:
-                new_env_lines.append(f"DISCORD_BOT_TOKEN=\n")
         elif key == "OPENCLAW_GATEWAY_TOKEN":
-            user_value = prompt_with_default("Enter value for OPENCLAW_GATEWAY_TOKEN (leave blank to autogenerate)", value)
+            prompt = "Enter value for OPENCLAW_GATEWAY_TOKEN"
+            if not default:
+                prompt += " (leave blank to autogenerate)"
+            user_value = prompt_with_default(prompt, default)
             if user_value:
                 new_env_lines.append(f"OPENCLAW_GATEWAY_TOKEN={user_value}\n")
-            elif value:
-                new_env_lines.append(f"OPENCLAW_GATEWAY_TOKEN={value}\n")
+            elif default:
+                new_env_lines.append(f"OPENCLAW_GATEWAY_TOKEN={default}\n")
             else:
                 try:
                     token = subprocess.check_output(["openssl", "rand", "-hex", "32"]).decode().strip()
@@ -109,13 +120,13 @@ def main():
                     print(f"Failed to generate token: {e}")
                     new_env_lines.append(f"OPENCLAW_GATEWAY_TOKEN=\n")
         elif key == "UID":
-            user_value = prompt_with_default("Enter UID for OpenClaw process", value or uid_default)
+            user_value = prompt_with_default("Enter UID for OpenClaw process", default)
             new_env_lines.append(f"UID={user_value}\n")
         elif key == "GID":
-            user_value = prompt_with_default("Enter GID for OpenClaw process", value or gid_default)
+            user_value = prompt_with_default("Enter GID for OpenClaw process", default)
             new_env_lines.append(f"GID={user_value}\n")
         else:
-            user_value = prompt_with_default(f"Enter value for {key}", value)
+            user_value = prompt_with_default(f"Enter value for {key}", default)
             if user_value is not None:
                 new_env_lines.append(f"{key}={user_value}\n")
             else:
