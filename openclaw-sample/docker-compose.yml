@@ -11,6 +11,7 @@ services:
       TERM: xterm-256color
       TZ: ${TZ:-UTC}
       NODE_EXTRA_CA_CERTS: /etc/inference-server/certs/ca.crt
+      OPENCLAW_NAME: ${OPENCLAW_NAME}
       # Gateway auth token — clients must present this to connect
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
