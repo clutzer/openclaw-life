@@ -85,25 +85,51 @@ docker compose up -d
 
 ---
 
+
 ## Adding an OpenClaw Instance
 
-Each instance lives in its own Git repository named `openclaw-<instance>`. Clone it directly into this directory:
+To add a new OpenClaw instance, use the provided helper scripts to create, configure, and check your instance:
 
-```bash
-git clone <repo-url> openclaw-<instance>
-```
+1. **Deploy a new instance from the sample template:**
 
-Inside `openclaw-<instance>/`, the instance repo is expected to contain:
+    ```bash
+    ./scripts/openclaw-life-deploy
+    ```
+    This will prompt you for a new instance name and create a directory like `openclaw-<instance>` by copying from `openclaw-sample`.
 
-- A `docker-compose.yml` that defines the instance's containers, joins `openclaw-life-net`, and declares appropriate Traefik labels for routing.
-- Volume mounts pointing at the directories within the submodule that should be revision-controlled (e.g. configuration, user data, plugins).
+2. **Configure the new instance:**
 
-Start an instance:
+    ```bash
+    ./scripts/openclaw-life-configure openclaw-<instance>
+    ```
+    This will walk you through setting up the `.env` file and other configuration for your new instance.
 
-```bash
-cd openclaw-<instance>
-docker compose up -d
-```
+3. **Check the instance setup:**
+
+    ```bash
+    ./scripts/openclaw-life-check openclaw-<instance>
+    ```
+    This verifies that your instance directory is ready to launch.
+
+4. **Start the instance:**
+
+    ```bash
+    cd openclaw-<instance>
+    docker compose up -d
+    ```
+
+Each instance directory will contain its own `docker-compose.yml` and configuration, isolated from other instances but sharing the underlying Docker network and Traefik proxy.
+
+You should optionally create a private Git repo to track this OpenClaw instance to keep its critical agent files backed up.
+
+    ```bash
+    cd openclaw-<instance>
+    git init
+    git remote add ...
+    git add -A
+    git commit -m ...
+    git push remote ...
+    ```
 
 ---
 
@@ -114,21 +140,15 @@ Clone this repository, then clone each instance repo alongside it:
 ```bash
 git clone <repo-url> openclaw-life
 cd openclaw-life
+```
+
+If you have pre-existing OpenClaw Life 'claws you want to deploy on this machine:
+
+```
 git clone <instance-repo-url> openclaw-<instance>
 ```
 
-Then re-run the setup steps above.
-
----
-
-## Updating an Instance
-
-Each instance is an independent repo. Pull updates from within the instance directory:
-
-```bash
-cd openclaw-<instance>
-git pull
-```
+Rinse and repeat as necessary...  For each OpenClaw instance you deploy, it's recommended to setup a nightly cron using `./scripts/openclaw-life-git-backup` to ensure that you are creating backups of your critical agent files.
 
 ---
 
