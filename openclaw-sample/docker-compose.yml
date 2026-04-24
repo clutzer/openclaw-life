@@ -1,5 +1,8 @@
 services:
   openclaw: # keep this static
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ghcr.io/openclaw/openclaw:latest
     container_name: openclaw-${OPENCLAW_NAME}
     restart: unless-stopped
