@@ -3,3 +3,7 @@ openclaw-*/
 
 # BUT do not ignore the sample directory
 !openclaw-sample/
+
+# DO not ignore the openclaw-ops skill directory
+!.agents/skills/openclaw-ops/
+!.agents/skills/openclaw-ops/**
