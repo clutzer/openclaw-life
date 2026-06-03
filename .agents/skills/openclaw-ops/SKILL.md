@@ -39,6 +39,28 @@ When investigating an instance named `<NAME>` (directory `openclaw-<NAME>`):
 
 > **Note on `openclaw.json` synchronization:** The runtime `openclaw.json` in `~/.openclaw-life/data/...` is the authoritative copy the container reads. The repo copy (`openclaw-<NAME>/openclaw.json`) is typically kept in sync via a nightly cron job (e.g. `./scripts/openclaw-life-git-backup` or a custom script), so manual copying back to the repo is usually unnecessary unless you need an immediate sync.
 
+## Fleet-wide Operations
+
+When the user refers to "agents" plural, "all instances", "my openclaws", or any
+phrasing that implies checking the entire fleet rather than a single instance:
+
+1. **Discover all instances**
+   - List all `openclaw-*` directories in the project root.
+   - **Exclude** `openclaw-sample/` — it is a static template, not a running instance.
+   - The remaining directories (e.g. `openclaw-luna/`, `openclaw-nia/`) are the active fleet.
+
+2. **Run checks across the fleet**
+   - For each instance, apply the relevant steps from the Troubleshooting Workflow
+     below (logs, container status, config validation, etc.).
+   - Aggregate the results into a concise summary per instance.
+   - If errors are found in one or more instances, report which ones and what the
+     errors are before diving into individual diagnosis.
+
+3. **Do not treat the sample directory as an instance**
+   - Never run `docker compose ps`, `docker logs`, or config edits against
+     `openclaw-sample/`.
+   - It has no `.env`, no running container, and no runtime config path.
+
 ## Troubleshooting Workflow
 
 When the user reports an issue with an instance (e.g., model provider errors,
