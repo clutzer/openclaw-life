@@ -7,3 +7,7 @@ openclaw-*/
 # DO not ignore the openclaw-ops skill directory
 !.agents/skills/openclaw-ops/
 !.agents/skills/openclaw-ops/**
+
+# DO not ignore the openclaw-log-check skill directory
+!.agents/skills/openclaw-log-check/
+!.agents/skills/openclaw-log-check/**
