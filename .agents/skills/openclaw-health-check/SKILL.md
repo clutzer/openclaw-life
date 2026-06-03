@@ -1,17 +1,18 @@
 ---
-name: openclaw-log-check
+name: openclaw-health-check
 description: >-
-  Quickly scan all OpenClaw instance containers for errors, warnings, and
-  failures in their logs. Use this skill when the user asks to check agent
-  logs, audit for errors, tail logs, or review log health across the fleet.
+  Perform a quick health check across all OpenClaw instance containers.
+  Use this skill when the user asks to check agent health, status, or logs,
+  audit for errors, or review whether the fleet is running cleanly.
 ---
 
-# OpenClaw Log Check
+# OpenClaw Fleet Health Check
 
-A focused, fast log audit across all running OpenClaw instances. This skill
-performs surface-level scanning only — it finds errors and reports them.
-If errors are found, the user can escalate to `openclaw-ops` for deep
-troubleshooting and repair.
+A focused, fast health check across all OpenClaw instances. Verifies that
+containers are running and scans their recent logs for errors, warnings,
+and failures. This skill performs surface-level scanning only — it reports
+what it finds. If errors are present, the user can escalate to `openclaw-ops`
+for deep troubleshooting and repair.
 
 ## Fleet Discovery
 
@@ -19,7 +20,7 @@ troubleshooting and repair.
 2. **Exclude** `openclaw-sample/` — it is a template, not a running instance.
 3. Map remaining directories to their container names (`openclaw-<NAME>`).
 
-## Log Audit Steps
+## Health Check Steps
 
 1. **Check container status**
    - Run `docker ps -a --filter "name=openclaw-<NAME>"` for each instance.
@@ -38,8 +39,9 @@ troubleshooting and repair.
 
 3. **Summarize findings**
    - Report per instance concisely:
-     - ✅ **Clean** — no error patterns found in the scanned window.
-     - ⚠️ **Errors found** — show timestamps, error type, and brief excerpts.
+     - ✅ **Healthy** — container is running and no error patterns found.
+     - ⚠️ **Degraded** — container is running but errors were found in logs.
+     - ❌ **Down/Unhealthy** — container is stopped, restarting, or missing.
    - Distinguish actual failures from expected noise (e.g. routine Discord
      websocket reconnects are usually harmless).
 
