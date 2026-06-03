@@ -9,5 +9,8 @@ openclaw-*/
 !.agents/skills/openclaw-ops/**
 
 # DO not ignore the openclaw-log-check skill directory
-!.agents/skills/openclaw-log-check/
-!.agents/skills/openclaw-log-check/**
+# (renamed to openclaw-health-check; exception below)
+
+# DO not ignore the openclaw-health-check skill directory
+!.agents/skills/openclaw-health-check/
+!.agents/skills/openclaw-health-check/**
