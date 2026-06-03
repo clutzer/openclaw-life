@@ -37,6 +37,8 @@ When investigating an instance named `<NAME>` (directory `openclaw-<NAME>`):
 | Container certs | `~/.openclaw-life/certs/` | Shared across all instances, mounted read-only. |
 | Traefik state | `~/.openclaw-life/data/traefik-acme.json` | ACME certificate store. |
 
+> **Note on `openclaw.json` synchronization:** The runtime `openclaw.json` in `~/.openclaw-life/data/...` is the authoritative copy the container reads. The repo copy (`openclaw-<NAME>/openclaw.json`) is typically kept in sync via a nightly cron job (e.g. `./scripts/openclaw-life-git-backup` or a custom script), so manual copying back to the repo is usually unnecessary unless you need an immediate sync.
+
 ## Troubleshooting Workflow
 
 When the user reports an issue with an instance (e.g., model provider errors,
