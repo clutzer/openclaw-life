@@ -46,3 +46,11 @@ if [[ -f "$EXAMPLE_ENV" && -x "$CONFIGURE_SCRIPT" ]]; then
 elif [[ -f "$EXAMPLE_ENV" ]]; then
   echo "To configure this instance, run: $CONFIGURE_SCRIPT openclaw-$INSTANCE_NAME"
 fi
+
+# Reminder about optional gogcli Google integration
+echo ""
+echo "If this instance needs Google services (Gmail, Calendar, Drive, etc.):"
+echo "  1. Start the container: cd $TARGET_DIR && docker compose up -d"
+echo "  2. Place a client_secret_*.json in ~/.openclaw-life/data/openclaw-$INSTANCE_NAME/"
+echo "  3. Run: $BASE_DIR/scripts/openclaw-life-gog-auth openclaw-$INSTANCE_NAME"
+echo "  See docs/gog-auth-setup.md for the full walkthrough."

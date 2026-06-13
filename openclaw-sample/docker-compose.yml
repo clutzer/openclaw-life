@@ -20,6 +20,12 @@ services:
       OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
       INFERENCE_GATEWAY_TOKEN: ${INFERENCE_GATEWAY_TOKEN}
+
+      # gogcli (Google CLI) configuration — populated by scripts/openclaw-life-gog-auth
+      GOG_HOME: ${GOG_HOME:-}
+      GOG_KEYRING_BACKEND: ${GOG_KEYRING_BACKEND:-}
+      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
+      GOG_ACCOUNT: ${GOG_ACCOUNT:-}
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
       # Named volume for runtime-only data: channel credentials, sessions, caches.

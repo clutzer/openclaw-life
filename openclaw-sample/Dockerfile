@@ -6,9 +6,11 @@
 # docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) .
 
 # --- STAGE 1: The GOG Downloader ---
+# Pin the gogcli version you want; override at build time if needed.
+ARG GOGCLI_VERSION=0.25.0
 FROM alpine:latest AS gog-builder
 RUN apk add --no-cache curl
-RUN curl -Lsf https://github.com/steipete/gogcli/releases/download/v0.12.0/gogcli_0.12.0_linux_amd64.tar.gz | \
+RUN curl -Lsf https://github.com/openclaw/gogcli/releases/download/v${GOGCLI_VERSION}/gogcli_${GOGCLI_VERSION}_linux_amd64.tar.gz | \
     tar -zxv gog
 
 # --- STAGE 2: Final Image Construction ---

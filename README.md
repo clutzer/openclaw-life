@@ -11,7 +11,11 @@ openclaw-life/                          ← this repo (shared infrastructure)
 ├── docker-compose.yml                  ← Traefik reverse proxy
 │
 ├── scripts/                            ← helper scripts
-│   └── openclaw-life-check             ← verify openclaw-<instance> directory is good
+│   ├── openclaw-life-check             ← verify openclaw-<instance> directory is good
+│   ├── openclaw-life-configure         ← interactive .env setup for a new instance
+│   ├── openclaw-life-deploy            ← copy openclaw-sample into a new instance directory
+│   ├── openclaw-life-git-backup        ← nightly cron helper for workspace backups
+│   └── openclaw-life-gog-auth          ← set up Google CLI (gogcli) OAuth for an instance
 │
 ├── setup/                              ← setup scripts
 │   ├── step-0-setup-system.sh          ← one-time system provisioning (run as root)
@@ -117,6 +121,21 @@ To add a new OpenClaw instance, use the provided helper scripts to create, confi
     cd openclaw-<instance>
     docker compose up -d
     ```
+
+5. **(Optional) Set up Google CLI (gogcli) authentication:**
+
+    If this instance needs access to Google services (Gmail, Calendar, Drive, etc.), place a downloaded `client_secret_*.json` in the instance data directory and run the auth helper:
+
+    ```bash
+    # Copy the client secret downloaded from Google Cloud Console
+    cp ~/Downloads/client_secret_*.json \
+       ~/.openclaw-life/data/openclaw-<instance>/
+
+    # Run the interactive auth setup
+    ../scripts/openclaw-life-gog-auth openclaw-<instance>
+    ```
+
+    This walks you through OAuth authorization inside the running container. See `docs/gog-auth-setup.md` for the full walkthrough.
 
 Each instance directory will contain its own `docker-compose.yml` and configuration, isolated from other instances but sharing the underlying Docker network and Traefik proxy.
 

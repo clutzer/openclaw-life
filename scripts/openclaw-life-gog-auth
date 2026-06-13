@@ -1,0 +1,451 @@
+#!/usr/bin/env python3
+"""
+openclaw-life-gog-auth
+
+Automates gogcli (Google CLI) OAuth setup for an OpenClaw instance.
+
+This script runs on the Docker host (the VM) and uses 'docker compose exec'
+to run gog commands inside the running OpenClaw container. The interactive
+OAuth step ('--manual') forwards the URL to your laptop terminal so you can
+complete the browser flow and paste the authorization code back.
+
+Usage:
+    ./scripts/openclaw-life-gog-auth <instance-name>
+    # Or, from inside an openclaw-NAME/ directory:
+    ../scripts/openclaw-life-gog-auth
+
+Prerequisites:
+- The OpenClaw container for this instance must be running.
+- A client_secret_*.json file must exist in:
+  ~/.openclaw-life/data/openclaw-NAME/
+"""
+
+import os
+import sys
+import re
+import glob
+import subprocess
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).parent.resolve()
+BASE_DIR = SCRIPT_DIR.parent
+
+MIN_GOGCLI_VERSION = (0, 24, 0)  # Auth subcommands, PKCE, and --manual flow
+
+
+def resolve_instance():
+    """Determine instance name and directory from CLI arg or CWD."""
+    if len(sys.argv) > 1:
+        name = sys.argv[1]
+        instance_dir = BASE_DIR / f"openclaw-{name}"
+        if not instance_dir.exists():
+            print(f"❌ Instance directory not found: {instance_dir}")
+            sys.exit(1)
+        return name, instance_dir
+
+    # Try to auto-detect from current directory
+    cwd = Path.cwd().resolve()
+    if cwd.name.startswith("openclaw-"):
+        name = cwd.name.split("-", 1)[1]
+        return name, cwd
+    for parent in cwd.parents:
+        if parent.name.startswith("openclaw-"):
+            name = parent.name.split("-", 1)[1]
+            return name, parent
+
+    print("Usage: openclaw-life-gog-auth <instance-name>")
+    print("   Or: run from inside an openclaw-NAME/ directory.")
+    sys.exit(1)
+
+
+def get_data_dir(instance_name):
+    return Path.home() / ".openclaw-life" / "data" / f"openclaw-{instance_name}"
+
+
+def find_client_secrets(data_dir):
+    """Look for downloaded Google OAuth client_secret JSON files."""
+    candidates = []
+    for pattern in (
+        str(data_dir / "client_secret_*.json"),
+        str(data_dir / "client_secret_*.apps.googleusercontent.com.json"),
+    ):
+        candidates.extend(glob.glob(pattern))
+    return sorted(set(candidates))
+
+
+def container_is_running(instance_name):
+    container = f"openclaw-{instance_name}"
+    result = subprocess.run(
+        ["docker", "ps", "-q", "-f", f"name={container}"],
+        capture_output=True,
+        text=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def dc_exec(instance_dir, *cmd_args, interactive=False, env_vars=None):
+    """Run 'docker compose exec ... openclaw <command>' for this instance."""
+    env_flags = []
+    if env_vars:
+        for key, val in env_vars.items():
+            env_flags.extend(["-e", f"{key}={val}"])
+
+    docker_cmd = ["docker", "compose", "exec"]
+    docker_cmd.append("-it" if interactive else "-T")
+    docker_cmd.extend(env_flags)
+    docker_cmd.append("openclaw")
+    docker_cmd.extend(cmd_args)
+
+    return subprocess.run(docker_cmd, cwd=str(instance_dir))
+
+
+def parse_version(version_str):
+    """Extract a dotted version string (e.g. '0.25.0') and return a tuple of ints."""
+    m = re.search(r"\d+\.\d+\.\d+", version_str)
+    if not m:
+        return None
+    return tuple(int(p) for p in m.group(0).split("."))
+
+
+def verify_gog_version(instance_dir):
+    """Confirm the container has a modern openclaw/gogcli binary."""
+    print("\n--- Checking gogcli version inside container ---")
+
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "openclaw", "gog", "--version"],
+        cwd=str(instance_dir),
+        capture_output=True,
+        text=True,
+    )
+
+    version_tuple = None
+    version_str = None
+    if result.returncode == 0:
+        version_str = result.stdout.strip().splitlines()[0]
+        version_tuple = parse_version(version_str)
+        print(f"  Container reports: {version_str}")
+
+    if version_tuple:
+        if version_tuple >= MIN_GOGCLI_VERSION:
+            print(
+                f"  ✅ Version {'.'.join(str(p) for p in version_tuple)} is supported."
+            )
+            return True
+        print(
+            f"  ⚠️  Version {'.'.join(str(p) for p in version_tuple)} is too old. "
+            f"Minimum supported is {'.'.join(str(p) for p in MIN_GOGCLI_VERSION)}."
+        )
+    else:
+        out_preview = result.stdout.strip()[:200]
+        err_preview = result.stderr.strip()[:200]
+        print(f"  ⚠️  Could not parse version string.")
+        if out_preview:
+            print(f"      stdout: {out_preview!r}")
+        if err_preview:
+            print(f"      stderr: {err_preview!r}")
+
+    # Fallback: see whether the 'auth' subcommand even exists
+    auth_help = subprocess.run(
+        ["docker", "compose", "exec", "-T", "openclaw", "gog", "auth", "--help"],
+        cwd=str(instance_dir),
+        capture_output=True,
+    )
+    if auth_help.returncode == 0:
+        print(
+            "  ⚠️  Binary looks old but 'gog auth --help' works. Proceeding anyway."
+        )
+        return True
+
+    print_section("INCOMPATIBLE gogcli BINARY")
+    print(
+        "\nThis container has a gogcli binary that is too old (or from the wrong project).\n"
+        "The auth commands used by this script require openclaw/gogcli "
+        f"v{'.'.join(str(p) for p in MIN_GOGCLI_VERSION)} or later.\n\n"
+    )
+
+    # Offer concrete remediation steps
+    dockerfile_path = instance_dir / "Dockerfile"
+    print("To fix, update the instance Dockerfile and rebuild:\n")
+    if dockerfile_path.exists():
+        print(f"  # 1. Back up your existing Dockerfile if you have custom edits:")
+        print(f"  cp {dockerfile_path} {dockerfile_path}.bak")
+        print(f"")
+    print(f"  # 2. Copy the new sample Dockerfile (or edit manually)")
+    print(f"  cp {BASE_DIR / 'openclaw-sample' / 'Dockerfile'} {dockerfile_path}")
+    print(f"")
+    print(f"  # 3. Rebuild and restart")
+    print(f"  cd {instance_dir}")
+    print(f"  docker compose build --no-cache")
+    print(f"  docker compose up -d")
+    print(f"")
+    print(f"Then re-run this script.")
+    return False
+
+
+def read_env(env_path):
+    """Read a .env file into a dict."""
+    env = {}
+    if not env_path.exists():
+        return env
+    with open(env_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip()
+    return env
+
+
+def write_env(env_path, env):
+    """Write a .env file from a dict, appending new keys at the end."""
+    lines = []
+    if env_path.exists():
+        with open(env_path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+
+    # Strip out old GOG_* lines so we can rewrite them cleanly
+    filtered = [
+        ln for ln in lines
+        if not any(
+            ln.strip().startswith(f"GOG_{prefix}")
+            for prefix in ("HOME", "KEYRING_BACKEND", "KEYRING_PASSWORD", "ACCOUNT")
+        )
+    ]
+
+    # Append the gog block
+    if filtered and filtered[-1].strip():
+        filtered.append("")
+    filtered.append("# --- gogcli (Google CLI) configuration ---")
+    for key in ("GOG_HOME", "GOG_KEYRING_BACKEND", "GOG_KEYRING_PASSWORD", "GOG_ACCOUNT"):
+        if key in env:
+            filtered.append(f"{key}={env[key]}")
+
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(filtered) + "\n")
+
+
+def print_section(title):
+    print(f"\n{'─' * 50}")
+    print(title)
+    print("─" * 50)
+
+
+def main():
+    instance_name, instance_dir = resolve_instance()
+
+    print(f"OpenClaw instance : {instance_name}")
+    print(f"Instance directory: {instance_dir}")
+
+    # ------------------------------------------------------------------
+    # 1. Locate the instance data directory and look for client_secret
+    # ------------------------------------------------------------------
+    data_dir = get_data_dir(instance_name)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Data directory    : {data_dir}")
+
+    secrets = find_client_secrets(data_dir)
+    if not secrets:
+        print_section("MISSING: OAuth client_secret JSON file")
+        print(
+            f"\nNo client_secret_*.json found in:\n  {data_dir}\n"
+            "\nPlease create one in the Google Cloud Console:\n"
+            "  1. https://console.cloud.google.com/projectcreate\n"
+            "  2. Enable the APIs you need (Gmail, Calendar, Drive, etc.)\n"
+            "  3. https://console.cloud.google.com/auth/clients\n"
+            "  4. Create a 'Desktop app' OAuth client\n"
+            "  5. Download the JSON and place it in the directory above.\n"
+            "\nSee docs/gog-auth-setup.md for the full walkthrough.\n"
+        )
+        sys.exit(1)
+
+    if len(secrets) > 1:
+        print("\nMultiple client_secret files found:")
+        for i, s in enumerate(secrets, 1):
+            print(f"  {i}. {Path(s).name}")
+        choice = input("Select one (number): ").strip()
+        try:
+            secret_path = Path(secrets[int(choice) - 1])
+        except (ValueError, IndexError):
+            print("Invalid selection.")
+            sys.exit(1)
+    else:
+        secret_path = Path(secrets[0])
+
+    print(f"Client secret     : {secret_path.name}")
+
+    # ------------------------------------------------------------------
+    # 2. Make sure the container is actually running
+    # ------------------------------------------------------------------
+    if not container_is_running(instance_name):
+        print_section("CONTAINER NOT RUNNING")
+        print(
+            f"\nThe container 'openclaw-{instance_name}' is not up yet.\n"
+            f"Start it with:\n"
+            f"  cd {instance_dir}\n"
+            f"  docker compose up -d\n"
+        )
+        sys.exit(1)
+
+    # ------------------------------------------------------------------
+    # 2b. Verify gogcli binary is modern enough for this script
+    # ------------------------------------------------------------------
+    if not verify_gog_version(instance_dir):
+        sys.exit(1)
+
+    # ------------------------------------------------------------------
+    # 3. Environment variables for the container gog process
+    # ------------------------------------------------------------------
+    # The host data_dir is bind-mounted at /home/node/.openclaw in the
+    # container, so paths inside the container mirror the host layout
+    # relative to that mount.
+    container_secret = f"/home/node/.openclaw/{secret_path.name}"
+    gog_home = "/home/node/.openclaw/gogcli"
+
+    keyring_password = subprocess.check_output(
+        ["openssl", "rand", "-hex", "32"]
+    ).decode().strip()
+
+    env_vars = {
+        "GOG_HOME": gog_home,
+        "GOG_KEYRING_BACKEND": "file",
+        "GOG_KEYRING_PASSWORD": keyring_password,
+    }
+
+    # ------------------------------------------------------------------
+    # 4. Prepare gogcli config directory inside the container
+    # ------------------------------------------------------------------
+    print_section("Preparing gogcli config directory")
+    r = dc_exec(instance_dir, "mkdir", "-p", gog_home, env_vars=env_vars)
+    if r.returncode != 0:
+        print("❌ Failed to create gogcli directory inside the container.")
+        sys.exit(1)
+
+    # ------------------------------------------------------------------
+    # 5. Store the OAuth client credentials
+    # ------------------------------------------------------------------
+    print_section("Storing OAuth client credentials")
+    r = dc_exec(
+        instance_dir,
+        "gog", "auth", "credentials", container_secret,
+        env_vars=env_vars,
+    )
+    if r.returncode != 0:
+        print("❌ Failed to store OAuth client credentials.")
+        sys.exit(1)
+    print("✅ Credentials stored.")
+
+    # ------------------------------------------------------------------
+    # 6. Interactive account authorization
+    # ------------------------------------------------------------------
+    print_section("Account Authorization")
+    email = input("Google account email: ").strip()
+    if not email:
+        print("❌ Email is required.")
+        sys.exit(1)
+
+    default_services = "gmail,calendar,drive,docs,sheets,contacts"
+    services_input = input(
+        f"Services to enable [{default_services}]: "
+    ).strip()
+    services = services_input if services_input else default_services
+
+    print(
+        f"\nThe next command prints a Google OAuth URL.\n"
+        f"  1. Copy the URL and open it in your laptop browser.\n"
+        f"  2. Sign in to Google and click 'Allow'.\n"
+        f"  3. Copy the authorization code Google shows you.\n"
+        f"  4. Return here, paste the code, and press Enter.\n\n"
+        f"Press Enter when ready..."
+    )
+    input()
+
+    # Run interactive gog auth add --manual inside the container.
+    # We use subprocess.run with no capture so stdin/stdout flow directly
+    # through the SSH session and the docker exec TTY to your laptop.
+    r = dc_exec(
+        instance_dir,
+        "gog", "auth", "add", email,
+        "--services", services,
+        "--manual",
+        interactive=True,
+        env_vars=env_vars,
+    )
+    if r.returncode != 0:
+        print("\n❌ Authorization failed or was cancelled.")
+        # Print the exact manual command so the user can retry
+        print("\nYou can retry manually with:\n")
+        env_flags = " ".join(f'-e {k}="{v}"' for k, v in env_vars.items())
+        print(
+            f"  docker compose exec -it {env_flags} openclaw \\\n"
+            f"    gog auth add {email} --services {services} --manual"
+        )
+        sys.exit(1)
+
+    # ------------------------------------------------------------------
+    # 7. Verify the token inside the container
+    # ------------------------------------------------------------------
+    print_section("Verifying authentication")
+    r = dc_exec(
+        instance_dir,
+        "gog", "auth", "doctor", "--check",
+        env_vars=env_vars,
+    )
+    if r.returncode != 0:
+        print("\n❌ Auth verification failed.")
+        print("Run the following for detailed diagnostics:\n")
+        env_flags = " ".join(f'-e {k}="{v}"' for k, v in env_vars.items())
+        print(
+            f"  docker compose exec -T {env_flags} openclaw \\\n"
+            f"    gog auth doctor --check"
+        )
+        sys.exit(1)
+    print("✅ Authentication is healthy inside the container.")
+
+    # ------------------------------------------------------------------
+    # 8. Persist GOG_* variables in the instance .env file
+    # ------------------------------------------------------------------
+    env_path = instance_dir / ".env"
+    if env_path.exists():
+        print_section(f"Updating {env_path.name}")
+        env = read_env(env_path)
+        env.update(env_vars)
+        env["GOG_ACCOUNT"] = email
+        write_env(env_path, env)
+        print("✅ GOG_* variables written to .env")
+    else:
+        print_section("⚠️  No .env file found")
+        print(
+            "Add the following variables to your instance environment\n"
+            "(e.g., in docker-compose.yml or a .env file):\n"
+        )
+        for k, v in {**env_vars, "GOG_ACCOUNT": email}.items():
+            print(f"  {k}={v}")
+
+    # ------------------------------------------------------------------
+    # 9. Final instructions
+    # ------------------------------------------------------------------
+    print_section("✅ gogcli setup complete!")
+    print(
+        f"\nGoogle account   : {email}"
+        f"\nServices enabled : {services}"
+        f"\nGOG_HOME (host)  : {data_dir / 'gogcli'}"
+        f"\nGOG_HOME (cont)  : {gog_home}"
+    )
+
+    if env_path.exists():
+        print(
+            f"\nRestart the container so the new .env values take effect:\n"
+            f"  cd {instance_dir}\n"
+            f"  docker compose restart"
+        )
+
+    print(
+        f"\nTest from inside the container:\n"
+        f"  docker compose exec openclaw gog gmail search 'newer_than:1d' --max 1\n\n"
+        f"Your OpenClaw agent can now use gog via MCP or direct exec."
+    )
+
+
+if __name__ == "__main__":
+    main()
