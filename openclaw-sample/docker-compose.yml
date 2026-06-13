@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/openclaw/openclaw:latest
+    image: openclaw-life:latest
     container_name: openclaw-${OPENCLAW_NAME}
     restart: unless-stopped
     init: true
@@ -13,7 +13,6 @@ services:
       HOME: /home/node
       TERM: xterm-256color
       TZ: ${TZ:-UTC}
-      NODE_EXTRA_CA_CERTS: /etc/inference-server/certs/ca.crt
       OPENCLAW_NAME: ${OPENCLAW_NAME}
       # Gateway auth token — clients must present this to connect
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
@@ -37,12 +36,6 @@ services:
       # workspace directory is owned by this repo while everything else in
       # .openclaw remains in the named volume.
       - ./workspace:/home/node/.openclaw/workspace
-
-      # Git-tracked certs for custom CAs.  These are read-only and should be
-      # mounted from the host to avoid having secrets in the repo.  The server
-      # will use these to verify TLS connections to private endpoints if
-      # OPENCLAW_ALLOW_INSECURE_PRIVATE_WS is not set.
-      - ${HOME}/.openclaw-life/certs:/etc/inference-server/certs:ro
 
       # Git-tracked instance configuration.  Keep secrets out of this file —
       # use environment variables or .env instead.
