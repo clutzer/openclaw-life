@@ -7,7 +7,17 @@ openclaw-*/
 # DO not ignore the openclaw-ops skill directory
 !.agents/skills/openclaw-ops/
 !.agents/skills/openclaw-ops/**
+<<<<<<< HEAD
 #
 # Python
 __pycache__/
 *.py[cod]
+=======
+
+# DO not ignore the openclaw-log-check skill directory
+# (renamed to openclaw-health-check; exception below)
+
+# DO not ignore the openclaw-health-check skill directory
+!.agents/skills/openclaw-health-check/
+!.agents/skills/openclaw-health-check/**
+>>>>>>> efc3d81f323e7de28ed2dc526bfd90f42dbb58ee
