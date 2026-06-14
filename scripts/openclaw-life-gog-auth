@@ -20,11 +20,11 @@ Prerequisites:
   ~/.openclaw-life/data/openclaw-NAME/
 """
 
-import os
-import sys
-import re
 import glob
+import os
+import re
 import subprocess
+import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -145,16 +145,18 @@ def verify_gog_version(instance_dir):
             print(f"      stderr: {err_preview!r}")
 
     # Fallback: see whether the 'auth' subcommand even exists
-    auth_help = subprocess.run(
-        ["docker", "compose", "exec", "-T", "openclaw", "gog", "auth", "--help"],
-        cwd=str(instance_dir),
-        capture_output=True,
-    )
-    if auth_help.returncode == 0:
-        print(
-            "  ⚠️  Binary looks old but 'gog auth --help' works. Proceeding anyway."
+    # Only use this if we couldn't parse a version string at all.
+    if version_tuple is None:
+        auth_help = subprocess.run(
+            ["docker", "compose", "exec", "-T", "openclaw", "gog", "auth", "--help"],
+            cwd=str(instance_dir),
+            capture_output=True,
         )
-        return True
+        if auth_help.returncode == 0:
+            print(
+                "  ⚠️  Could not parse version, but 'gog auth --help' works. Proceeding anyway."
+            )
+            return True
 
     print_section("INCOMPATIBLE gogcli BINARY")
     print(
@@ -206,7 +208,8 @@ def write_env(env_path, env):
 
     # Strip out old GOG_* lines so we can rewrite them cleanly
     filtered = [
-        ln for ln in lines
+        ln
+        for ln in lines
         if not any(
             ln.strip().startswith(f"GOG_{prefix}")
             for prefix in ("HOME", "KEYRING_BACKEND", "KEYRING_PASSWORD", "ACCOUNT")
@@ -217,7 +220,12 @@ def write_env(env_path, env):
     if filtered and filtered[-1].strip():
         filtered.append("")
     filtered.append("# --- gogcli (Google CLI) configuration ---")
-    for key in ("GOG_HOME", "GOG_KEYRING_BACKEND", "GOG_KEYRING_PASSWORD", "GOG_ACCOUNT"):
+    for key in (
+        "GOG_HOME",
+        "GOG_KEYRING_BACKEND",
+        "GOG_KEYRING_PASSWORD",
+        "GOG_ACCOUNT",
+    ):
         if key in env:
             filtered.append(f"{key}={env[key]}")
 
@@ -302,9 +310,9 @@ def main():
     container_secret = f"/home/node/.openclaw/{secret_path.name}"
     gog_home = "/home/node/.openclaw/gogcli"
 
-    keyring_password = subprocess.check_output(
-        ["openssl", "rand", "-hex", "32"]
-    ).decode().strip()
+    keyring_password = (
+        subprocess.check_output(["openssl", "rand", "-hex", "32"]).decode().strip()
+    )
 
     env_vars = {
         "GOG_HOME": gog_home,
@@ -327,7 +335,10 @@ def main():
     print_section("Storing OAuth client credentials")
     r = dc_exec(
         instance_dir,
-        "gog", "auth", "credentials", container_secret,
+        "gog",
+        "auth",
+        "credentials",
+        container_secret,
         env_vars=env_vars,
     )
     if r.returncode != 0:
@@ -345,9 +356,7 @@ def main():
         sys.exit(1)
 
     default_services = "gmail,calendar,drive,docs,sheets,contacts"
-    services_input = input(
-        f"Services to enable [{default_services}]: "
-    ).strip()
+    services_input = input(f"Services to enable [{default_services}]: ").strip()
     services = services_input if services_input else default_services
 
     print(
@@ -365,8 +374,12 @@ def main():
     # through the SSH session and the docker exec TTY to your laptop.
     r = dc_exec(
         instance_dir,
-        "gog", "auth", "add", email,
-        "--services", services,
+        "gog",
+        "auth",
+        "add",
+        email,
+        "--services",
+        services,
         "--manual",
         interactive=True,
         env_vars=env_vars,
@@ -388,7 +401,10 @@ def main():
     print_section("Verifying authentication")
     r = dc_exec(
         instance_dir,
-        "gog", "auth", "doctor", "--check",
+        "gog",
+        "auth",
+        "doctor",
+        "--check",
         env_vars=env_vars,
     )
     if r.returncode != 0:

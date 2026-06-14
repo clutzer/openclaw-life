@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID}
+        GROUP_ID: ${GROUP_ID}
     image: openclaw-life:latest
     container_name: openclaw-${OPENCLAW_NAME}
     restart: unless-stopped
@@ -25,7 +28,7 @@ services:
       GOG_KEYRING_BACKEND: ${GOG_KEYRING_BACKEND:-}
       GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
       GOG_ACCOUNT: ${GOG_ACCOUNT:-}
-    user: "${UID:-1000}:${GID:-1000}"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     volumes:
       # Named volume for runtime-only data: channel credentials, sessions, caches.
       # These are NOT git-tracked. Managed entirely by Docker.

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
 import os
-import yaml
 import re
+import subprocess
 from pathlib import Path
+
+import yaml
 from dotenv import load_dotenv
+
 
 def expand_env_vars(content):
     """Expands ${VAR} or $VAR based on current environment/dotenv.
     Raises ValueError for any variable that is not set."""
+
     def replacer(m):
         var = m.group(1) or m.group(2)
         val = os.getenv(var)
@@ -18,16 +22,96 @@ def expand_env_vars(content):
                 "Check your .env file."
             )
         return val
-    return re.sub(r'\$\{(\w+)\}|\$(\w+)', replacer, content)
+
+    return re.sub(r"\$\{(\w+)\}|\$(\w+)", replacer, content)
+
+
+def check_uid_gid():
+    """Ensures USER_ID and GROUP_ID are set to current host IDs.
+    Updates .env if they are missing or incorrect."""
+    env_path = Path.cwd() / ".env"
+
+    # Get actual host IDs
+    try:
+        actual_uid = subprocess.check_output(["id", "-u"]).decode().strip()
+        actual_gid = subprocess.check_output(["id", "-g"]).decode().strip()
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error retrieving host IDs: {e}")
+        return False
+
+    # Read current .env if it exists
+    env_vars = {}
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env_vars[k.strip()] = v.strip().strip('"').strip("'")
+
+    # Check for correctness
+    needs_update = False
+    if env_vars.get("USER_ID") != actual_uid:
+        print(f"📝 Updating USER_ID: {env_vars.get('USER_ID')} -> {actual_uid}")
+        env_vars["USER_ID"] = actual_uid
+        needs_update = True
+
+    if env_vars.get("GROUP_ID") != actual_gid:
+        print(f"📝 Updating GROUP_ID: {env_vars.get('GROUP_ID')} -> {actual_gid}")
+        env_vars["GROUP_ID"] = actual_gid
+        needs_update = True
+
+    if needs_update:
+        # We need to preserve other variables in the .env file
+        if env_path.exists():
+            lines = []
+            processed_keys = set()
+            with open(env_path, "r") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and "=" in stripped:
+                        k = stripped.split("=", 1)[0].strip()
+                        if k in ("USER_ID", "GROUP_ID"):
+                            lines.append(f"{k}={env_vars[k]}\n")
+                            processed_keys.add(k)
+                            continue
+                    lines.append(line)
+
+            # Add any missing required keys at the end
+            for k in ("USER_ID", "GROUP_ID"):
+                if k not in processed_keys:
+                    lines.append(f"{k}={env_vars[k]}\n")
+
+            with open(env_path, "w") as f:
+                f.writelines(lines)
+        else:
+            # Create new .env with only these two
+            with open(env_path, "w") as f:
+                f.write(f"USER_ID={actual_uid}\nGROUP_ID={actual_gid}\n")
+
+        print(f"✅ Updated {env_path} with current host IDs.")
+    else:
+        print(
+            f"✅ Host IDs are already correct in {env_path if env_path.exists() else 'environment'}."
+        )
+
+    return True
+
 
 def setup_openclaw():
+    # 0. Ensure UID/GID are correct in .env before loading
+    if not check_uid_gid():
+        return
+
     # 1. Load the .env file from the current working directory (i.e. the
     #    instance directory the script is invoked from, not the script's own
     #    directory).  override=True ensures .env values win over any existing
     #    shell environment variables with the same name.
     env_path = Path.cwd() / ".env"
     if not env_path.exists():
-        print(f"⚠️  Warning: no .env found at {env_path}  — relying on shell environment only.")
+        print(
+            f"⚠️  Warning: no .env found at {env_path}  — relying on shell environment only."
+        )
     else:
         load_dotenv(dotenv_path=env_path, override=True)
 
@@ -37,22 +121,26 @@ def setup_openclaw():
         return
 
     # 2. Read and expand variables in the YAML
-    with open(compose_path, 'r') as f:
+    with open(compose_path, "r") as f:
         raw_content = f.read()
         expanded_content = expand_env_vars(raw_content)
         config = yaml.safe_load(expanded_content)
 
-    print(f"🚀 Preparing directories for Project: {os.getenv('COMPOSE_PROJECT_NAME', 'default')}...")
+    print(
+        f"🚀 Preparing directories for Project: {os.getenv('COMPOSE_PROJECT_NAME', 'default')}..."
+    )
 
     # 3. Iterate through services and find bind mounts
-    for service_name, service_conf in config.get('services', {}).items():
-        volumes = service_conf.get('volumes', [])
+    for service_name, service_conf in config.get("services", {}).items():
+        volumes = service_conf.get("volumes", [])
         for vol in volumes:
             # We only care about bind mounts (they start with . or / or ~)
-            if isinstance(vol, str) and (vol.startswith('.') or vol.startswith('/') or vol.startswith('~')):
+            if isinstance(vol, str) and (
+                vol.startswith(".") or vol.startswith("/") or vol.startswith("~")
+            ):
                 # Split 'host_path:container_path'
-                host_path = vol.split(':')[0]
-                
+                host_path = vol.split(":")[0]
+
                 # Expand user (~)
                 full_path = Path(os.path.expanduser(host_path)).resolve()
 
@@ -63,6 +151,7 @@ def setup_openclaw():
                     print(f"✅ Exists: {full_path}")
 
     print("\n✨ Pre-flight check complete. You can now run 'docker-compose up -d'")
+
 
 if __name__ == "__main__":
     setup_openclaw()

@@ -6,11 +6,9 @@
 # docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) .
 
 # --- STAGE 1: The GOG Downloader ---
-# Pin the gogcli version you want; override at build time if needed.
-ARG GOGCLI_VERSION=0.25.0
 FROM alpine:latest AS gog-builder
 RUN apk add --no-cache curl
-RUN curl -Lsf https://github.com/openclaw/gogcli/releases/download/v${GOGCLI_VERSION}/gogcli_${GOGCLI_VERSION}_linux_amd64.tar.gz | \
+RUN curl -Lsf https://github.com/steipete/gogcli/releases/download/v0.25.0/gogcli_0.25.0_linux_amd64.tar.gz | \
     tar -zxv gog
 
 # --- STAGE 2: Final Image Construction ---
@@ -24,6 +22,13 @@ LABEL description="OpenClaw with synced permissions and extra client tools..."
 # Define IDs (these can be overridden at build time with --build-arg)
 ARG USER_ID=1000
 ARG GROUP_ID=1000
+
+# Log the IDs being used for the build
+RUN if [ -z "$USER_ID" ] || [ -z "$GROUP_ID" ]; then \
+        echo "❌ Error: USER_ID or GROUP_ID is not set. Please run the health check script first: ../scripts/openclaw-life-check"; \
+        exit 1; \
+    fi && \
+    echo "Building image with USER_ID=${USER_ID} and GROUP_ID=${GROUP_ID}"
 
 USER root
 
