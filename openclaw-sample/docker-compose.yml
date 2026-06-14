@@ -17,6 +17,7 @@ services:
       TERM: xterm-256color
       TZ: ${TZ:-UTC}
       OPENCLAW_NAME: ${OPENCLAW_NAME}
+      OPENCLAW_HOSTNAME: ${OPENCLAW_HOSTNAME}
       # Gateway auth token — clients must present this to connect
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
