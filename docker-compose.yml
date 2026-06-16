@@ -12,7 +12,7 @@ services:
       - "443:443"
       - "8080:8080" # Required for insecure dashboard access
     environment:
-      # This pulls directly from the 'sa' user's environment provided by your SSH session
+      # This pulls directly from the user's environment provided by your SSH session
       - LINODE_TOKEN=${LINODE_TOKEN}
       # You can still hardcode the email here or pass it via SetEnv ACME_EMAIL
       - ACME_EMAIL=${ACME_EMAIL:-nobody@example.com} 
