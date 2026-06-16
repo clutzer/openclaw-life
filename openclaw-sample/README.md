@@ -29,3 +29,13 @@ openclaw config set agents.defaults.memorySearch.enabled true
 openclaw memory index --force --all
 openclaw memory index --force
 ```
+
+## Hardening
+
+```
+openclaw config set session.dmScope per-channel-peer
+openclaw config set tools.profile messaging
+openclaw config set tools.deny '["gateway", "cron", "sessions_spawn", "sessions_send"]'
+openclaw config set tools.fs.workspaceOnly true
+openclaw config set tools.exec.security deny
+```
