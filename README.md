@@ -169,6 +169,11 @@ git clone <instance-repo-url> openclaw-<instance>
 
 Rinse and repeat as necessary...  For each OpenClaw instance you deploy, it's recommended to setup a nightly cron using `./scripts/openclaw-life-git-backup` to ensure that you are creating backups of your critical agent files.
 
+```
+# m h  dom mon dow   command
+30 3 * * * cd ~/openclaw-life/openclaw-joe  && ../scripts/openclaw-life-git-backup 2>&1 >> ~/joe.log
+35 3 * * * cd ~/openclaw-life/openclaw-mimi && ../scripts/openclaw-life-git-backup 2>&1 >> ~/mimi.log
+```
 ---
 
 ## Persistence and Backups
