@@ -6,7 +6,7 @@
 
 ## Goal
 
-Update `data/openclaw-archie/openclaw.json` and the repo copy `openclaw-archie/openclaw.json` so they match the current OpenClaw Life provider topology: `inference-server` for models and embeddings, fully-qualified model IDs, structured model declarations with primary + fallbacks, `memory.backend: builtin`, and the `google` plugin entry. Validate, commit, restart the container, and verify a clean boot.
+Align Archie's config with OpenClaw Life inference-server topology and verify clean boot.
 
 ## Execution Order
 
