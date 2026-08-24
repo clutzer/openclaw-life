@@ -98,6 +98,38 @@ def check_uid_gid():
     return True
 
 
+def check_backup_cron():
+    """Warn if no crontab entry backs up this instance's workspace.
+
+    This instance's openclaw.json + workspace are only committed to git by
+    scripts/openclaw-life-git-backup, which is expected to run on a nightly
+    crontab entry installed by openclaw-life-configure. If the entry is
+    missing, the instance will silently stop being backed up.
+    """
+    import re
+    import subprocess
+    from pathlib import Path
+
+    name = Path.cwd().name
+    try:
+        cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
+    except Exception as e:
+        print(f"⚠️  Could not read crontab: {e}")
+        return
+
+    pat = re.compile(
+        rf"openclaw-{re.escape(name)}\b\s*&&\s*\.\./scripts/openclaw-life-git-backup"
+    )
+    if pat.search(cron):
+        print(f"✅ Backup cron found for {name}.")
+    else:
+        print(
+            f"\n⚠️  No nightly backup crontab entry found for {name}.\n"
+            f"   This instance will NOT be backed up. Run `openclaw-life-configure "
+            f"{name}` to install it."
+        )
+
+
 def setup_openclaw():
     # 0. Ensure UID/GID are correct in .env before loading
     if not check_uid_gid():
@@ -151,6 +183,7 @@ def setup_openclaw():
                     print(f"✅ Exists: {full_path}")
 
     print("\n✨ Pre-flight check complete. You can now run 'docker-compose up -d'")
+    check_backup_cron()
 
 
 if __name__ == "__main__":

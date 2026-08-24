@@ -15,6 +15,65 @@ def list_openclaw_dirs(base_dir):
     )
 
 
+def backup_entry(name):
+    """Return the backup crontab line for an instance."""
+    home = os.path.expanduser("~")
+    return (
+        f"cd {home}/openclaw-life/openclaw-{name} "
+        f"&& ../scripts/openclaw-life-git-backup 2>&1 >> {home}/{name}.log"
+    )
+
+
+def openclaw_backup_entries(cron_lines):
+    """Yield (name, index, minute) for each existing openclaw backup line."""
+    import re
+
+    pat = re.compile(r"openclaw-([\w-]+)\s*&&\s*\.\./scripts/openclaw-life-git-backup")
+    for i, line in enumerate(cron_lines):
+        m = pat.search(line)
+        if m and re.match(r"^\s*\d+\s+3\s+", line):
+            minute = int(line.lstrip().split()[0])
+            yield m.group(1), i, minute
+
+
+def install_backup_cron(openclaw_name):
+    """Install/update the nightly backup cron entry for this instance,
+    scheduling it 5 minutes after the latest existing openclaw backup."""
+    import re
+
+    existing = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
+    cron_lines = existing.splitlines()
+
+    # Find the latest minute among existing openclaw backup entries.
+    minutes = [m for _, _, m in openclaw_backup_entries(cron_lines)]
+    minute = (max(minutes) + 5) % 60 if minutes else 30
+
+    # Build the new/updated line for this instance.
+    new_line = f"{minute} 3 * * * {backup_entry(openclaw_name)}"
+
+    # Replace an existing entry for this instance, or append a new one.
+    replaced = False
+    out = []
+    for line in cron_lines:
+        if re.search(
+            rf"openclaw-{re.escape(openclaw_name)}\b\s*&&\s*\.\./scripts/openclaw-life-git-backup",
+            line,
+        ):
+            out.append(new_line)
+            replaced = True
+        else:
+            out.append(line)
+    if not replaced:
+        out.append(new_line)
+
+    subprocess.run(["crontab", "-"], input="\n".join(out) + "\n", text=True, check=True)
+    action = "Updated" if replaced else "Installed"
+    print(
+        f"{action} nightly backup cron for openclaw-{openclaw_name} "
+        f"at 03:{minute:02d} (5 min after the previous backup)"
+    )
+
+
 def select_instance_dir(base_dir):
     dirs = list_openclaw_dirs(base_dir)
     if not dirs:
@@ -153,6 +212,12 @@ def main():
         f.writelines(new_env_lines)
 
     print(f".env file created at {dotenv_path}")
+
+    # Ensure the nightly backup cron exists for this instance. Re-running
+    # configure repairs the entry (e.g. after a cron break) and picks the
+    # next free 5-minute slot.
+    install_backup_cron(openclaw_name)
+
     print(f"\nOptional next steps:")
     print(
         f"  1. Start the container: cd openclaw-{openclaw_name} && docker compose up -d"
