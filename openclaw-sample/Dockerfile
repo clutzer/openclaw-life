@@ -13,7 +13,7 @@ RUN curl -Lsf https://github.com/steipete/gogcli/releases/download/v0.25.0/gogcl
 
 # --- STAGE 2: Final Image Construction ---
 #FROM ghcr.io/openclaw/openclaw:latest
-FROM ghcr.io/openclaw/openclaw:2026.4.12
+FROM ghcr.io/openclaw/openclaw:2026.9.1
 
 # Metadata only (Does not set the image name!)
 LABEL maintainer="OpenClaw Life Team <christiaan.lutzer@gmail.com>"
