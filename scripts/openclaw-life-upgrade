@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""OpenClaw Life Upgrade — one instance at a time.
+
+Usage:
+    cd openclaw-<name> && ../scripts/openclaw-life-upgrade <target_version>
+
+Upgrades a single OpenClaw instance to a new base image version.
+"""
+
+import argparse
+import contextlib
+import datetime
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+@contextlib.contextmanager
+def backup_files(*paths):
+    """Back up files and restore on failure."""
+    ts = int(time.time())
+    backups = {}
+    for p in paths:
+        if p.exists():
+            bak = p.with_name(f"{p.name}.bak.{ts}")
+            shutil.copy2(p, bak)
+            backups[p] = bak
+    try:
+        yield backups
+    except Exception:
+        print("\nUpgrade failed. Rolling back...", file=sys.stderr)
+        for orig, bak in backups.items():
+            shutil.copy2(bak, orig)
+            print(f"Restored {orig} from {bak}", file=sys.stderr)
+        raise
+
+
+def docker_compose(*args, **kwargs):
+    """Run docker compose subcommand."""
+    return subprocess.run(["docker", "compose", *args], **kwargs)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Upgrade a single OpenClaw instance to a new base image version.",
+        epilog="Run from inside an openclaw-* instance directory.",
+    )
+    parser.add_argument("version", help="Target OpenClaw base image version, e.g. 2026.9.2")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without doing it")
+    parser.add_argument("--no-doctor", action="store_true", help="Skip the openclaw doctor --fix step")
+    parser.add_argument("--skip-health-check", action="store_true", help="Skip post-startup health verification")
+    args = parser.parse_args()
+
+    if args.version.startswith("-"):
+        parser.error(f"version must not start with a dash: {args.version}")
+
+    pwd = Path.cwd()
+    basename = pwd.name
+    if basename == "openclaw-sample":
+        print("Error: must not be run from the sample template directory.", file=sys.stderr)
+        sys.exit(1)
+    if not basename.startswith("openclaw-"):
+        print(f"Error: must be run from an openclaw-* instance directory (got: {basename})", file=sys.stderr)
+        sys.exit(1)
+
+    instance_name = basename[len("openclaw-"):]
+    container_name = f"openclaw-{instance_name}"
+
+    dockerfile = Path("Dockerfile")
+    env_file = Path(".env")
+
+    # Read current versions
+    current_docker_from = None
+    if dockerfile.exists():
+        m = re.search(r'^FROM ghcr\.io/openclaw/openclaw:([^\s]+)', dockerfile.read_text(), re.MULTILINE)
+        current_docker_from = m.group(1) if m else None
+
+    current_env_version = None
+    if env_file.exists():
+        m = re.search(r'^OPENCLAW_VERSION=(.+)$', env_file.read_text(), re.MULTILINE)
+        current_env_version = m.group(1).strip() if m else None
+
+    print(f"=== OpenClaw Life Upgrade: {instance_name} ===")
+    print(f"Target version:  {args.version}")
+    print(f"Dockerfile FROM: {current_docker_from or '(not found)'}")
+    print(f".env version:    {current_env_version or '(not set)'}")
+
+    if current_env_version == args.version and current_docker_from == args.version:
+        print(f"Already at {args.version}; nothing to do.")
+        sys.exit(0)
+
+    files_to_backup = [f for f in [dockerfile, env_file] if f.exists()]
+    with backup_files(*files_to_backup):
+        # 1. Update Dockerfile
+        print("Updating Dockerfile...")
+        content = dockerfile.read_text()
+        new_content = re.sub(
+            r'^FROM ghcr\.io/openclaw/openclaw:[^\s]+',
+            f'FROM ghcr.io/openclaw/openclaw:{args.version}',
+            content,
+            flags=re.MULTILINE,
+        )
+        if args.dry_run:
+            print(f"[dry-run] Would update {dockerfile}")
+        else:
+            dockerfile.write_text(new_content)
+            if not re.search(
+                rf'^FROM ghcr\.io/openclaw/openclaw:{re.escape(args.version)}',
+                dockerfile.read_text(),
+                re.MULTILINE,
+            ):
+                raise RuntimeError("Dockerfile update failed")
+
+        # 2. Update .env
+        print("Updating .env OPENCLAW_VERSION...")
+        env_lines = env_file.read_text().splitlines()
+        updated = False
+        for i, line in enumerate(env_lines):
+            if line.startswith("OPENCLAW_VERSION="):
+                env_lines[i] = f"OPENCLAW_VERSION={args.version}"
+                updated = True
+                break
+        if not updated:
+            env_lines.append(f"OPENCLAW_VERSION={args.version}")
+
+        if args.dry_run:
+            print(f"[dry-run] Would update {env_file}")
+        else:
+            env_file.write_text("\n".join(env_lines) + "\n")
+            if f"OPENCLAW_VERSION={args.version}" not in env_file.read_text():
+                raise RuntimeError(".env update failed")
+
+        if args.dry_run:
+            print(f"[dry-run] Would build and start {container_name}")
+            sys.exit(0)
+
+        # 3. Stop container (non-fatal)
+        print("Stopping container if running...")
+        result = docker_compose("stop", capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Warning: docker compose stop failed: {result.stderr.strip()}; proceeding...")
+
+        # 4. Build new image
+        print(f"Building {container_name} with base image {args.version}...")
+        result = docker_compose("build", "--no-cache")
+        if result.returncode != 0:
+            raise RuntimeError("docker compose build failed")
+
+        # 5. Pre-start doctor fix
+        if not args.no_doctor:
+            print("Running pre-start doctor fix...")
+            result = docker_compose(
+                "run", "--rm", "openclaw", "openclaw", "doctor", "--fix",
+                timeout=600,
+            )
+            if result.returncode != 0:
+                print("Warning: doctor --fix exited non-zero; continuing with upgrade...")
+
+        # 6. Start persistent container
+        print(f"Starting {container_name}...")
+        docker_compose("up", "-d", check=True)
+
+        # 7. Wait for Docker health status
+        if not args.skip_health_check:
+            print("Waiting for Docker healthcheck...")
+            healthy = False
+            for i in range(120):
+                result = subprocess.run(
+                    ["docker", "inspect", "--format={{.State.Health.Status}}", container_name],
+                    capture_output=True, text=True,
+                )
+                status = result.stdout.strip() if result.returncode == 0 else "starting"
+                if status == "healthy":
+                    print(f"Container reports healthy (~{i * 2}s)")
+                    healthy = True
+                    break
+                if status == "unhealthy":
+                    print("ERROR: Container is unhealthy")
+                    subprocess.run(["docker", "logs", "--tail", "60", container_name])
+                    raise RuntimeError("Container unhealthy")
+                time.sleep(2)
+
+            if not healthy:
+                print("ERROR: Container did not become healthy within ~240s")
+                subprocess.run(["docker", "logs", "--tail", "60", container_name])
+                raise RuntimeError("Healthcheck timeout")
+
+            # HTTP healthz
+            print("Checking gateway HTTP health...")
+            result = subprocess.run(
+                ["docker", "exec", container_name, "sh", "-c",
+                 "curl -sS --max-time 10 http://127.0.0.1:18789/healthz"],
+                capture_output=True, text=True,
+            )
+            if result.returncode == 0 and '"ok":true' in result.stdout:
+                print("Gateway healthz: OK")
+            else:
+                print(f"Warning: Gateway healthz check failed or incomplete: {result.stdout.strip()}")
+
+            # Verify agent model
+            print("Verifying agent model in startup logs...")
+            result = subprocess.run(
+                ["docker", "logs", "--tail", "80", container_name],
+                capture_output=True, text=True,
+            )
+            for line in result.stdout.splitlines():
+                if "agent model:" in line:
+                    print(line.strip())
+                    break
+            else:
+                print("Warning: could not confirm 'agent model' in recent logs")
+
+    # 8. Record hop
+    record_file = Path("DOCKERFILE_HOP_RECORD")
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    record_line = f"{now} {current_env_version or 'unknown'} -> {args.version}\n"
+    existing = record_file.read_text() if record_file.exists() else ""
+    record_file.write_text(existing + record_line)
+    print(f"Recorded hop in {record_file}")
+
+    # 9. Git commit
+    for f in [dockerfile.name, "docker-compose.yml", record_file.name]:
+        subprocess.run(["git", "add", "-f", f], check=False)
+
+    result = subprocess.run(["git", "diff", "--cached", "--quiet"])
+    if result.returncode != 0:
+        subprocess.run(
+            ["git", "commit", "-m", f"chore(upgrade): {instance_name} hop to {args.version}"],
+            check=False,
+        )
+        print("Committed upgrade")
+    else:
+        print("No git changes to commit")
+
+    print(f"\n=== Upgrade to {args.version} complete ===")
+
+
+if __name__ == "__main__":
+    main()
