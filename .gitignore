@@ -12,6 +12,13 @@ openclaw-*/
 !.agents/skills/openclaw-health-check/
 !.agents/skills/openclaw-health-check/**
 
+# DO not ignore the openclaw-audit skill directory
+!.agents/skills/openclaw-audit/
+!.agents/skills/openclaw-audit/**
+
+# Deployment-specific agent context — do not commit
+AGENTS.md
+
 # Python
 __pycache__/
 *.py[cod]
