@@ -47,7 +47,7 @@ phrasing that implies checking the entire fleet rather than a single instance:
 1. **Discover all instances**
    - List all `openclaw-*` directories in the project root.
    - **Exclude** `openclaw-sample/` — it is a static template, not a running instance.
-   - The remaining directories (e.g. `openclaw-INSTANCE/`, `openclaw-INSTANCE/`) are the active fleet.
+   - The remaining directories (e.g. `openclaw-foo/`, `openclaw-bar/`) are the active fleet.
 
 2. **Run checks across the fleet**
    - For each instance, apply the relevant steps from the Troubleshooting Workflow
