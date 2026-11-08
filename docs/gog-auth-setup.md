@@ -55,7 +55,7 @@ A single **OAuth Desktop client secret JSON file** downloaded from the [Google C
 The downloaded file will have a name like:
 
 ```
-client_secret_2_960008870215-7co0rmvurhhddnilma235fsrj12pm2kr.apps.googleusercontent.com.json
+client_secret_2_123456789012-abcdefghij.apps.googleusercontent.com.json
 ```
 
 ## Step 5 — Place the file in the instance data directory
